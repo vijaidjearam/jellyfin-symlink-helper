@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - 'v*'  # This will trigger for any tags like v1.0.0, v2.1.1, etc.
+      - 'v*'
 
 jobs:
   version:
@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Ensure full history is fetched to access tags
 
       - name: Set up Git
         run: git fetch --tags
@@ -27,10 +29,13 @@ jobs:
           version_number=$(echo $latest_tag | sed 's/^v//')
           new_version=$(echo $version_number | awk -F. -v OFS=. '{$NF++;print}')
 
-          # Output the new version
+          # Output the new version for debugging
           echo "New version will be $new_version"
           echo "VERSION=$new_version" >> $GITHUB_ENV
           
+      - name: Verify version variable
+        run: echo "VERSION=${{ env.VERSION }}"
+
       - name: Create a new version tag
         run: |
           git tag ${{ env.VERSION }}
