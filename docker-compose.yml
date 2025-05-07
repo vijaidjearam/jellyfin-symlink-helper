@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  symlink-processor:
+    build: .
+    container_name: symlink-processor
+    environment:
+      - SOURCE=${SOURCE}
+      - DEST_BASE=${DEST_BASE}
+      - MODIFIED_WITHIN_HOURS=${MODIFIED_WITHIN_HOURS}
+    volumes:
+      - ${SOURCE}:${SOURCE}:ro
+      - ${DEST_BASE}:${DEST_BASE}
+    working_dir: /usr/local/bin
+    restart: unless-stopped
