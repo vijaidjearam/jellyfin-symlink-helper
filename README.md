@@ -13,7 +13,7 @@ This project provides a Dockerized Python script to:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/jellyfin-symlink-helper.git
+git clone https://github.com/vijaidjearam/jellyfin-symlink-helper.git
 cd jellyfin-symlink-helper
 ```
 
