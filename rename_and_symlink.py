@@ -7,14 +7,8 @@ from guessit import guessit
 # === Config ===
 SOURCE = Path(os.getenv("SOURCE", "/mnt/cloudmedia"))
 DEST_BASE = Path(os.getenv("DEST_BASE", "/srv/jellyfin"))
-MODIFIED_WITHIN_HOURS = int(os.getenv("MODIFIED_WITHIN_HOURS", 24))
 
 # === Helper Functions ===
-
-def is_recent(filepath: Path) -> bool:
-    """Check if the file was modified within the last N hours."""
-    mtime = filepath.stat().st_mtime
-    return (time.time() - mtime) <= (MODIFIED_WITHIN_HOURS * 3600)
 
 def clean_filename(filename: str) -> str:
     """
@@ -48,9 +42,6 @@ def make_symlink(source_file: Path, target_path: Path):
 
 def process_file(filepath: Path):
     """Parse filename and create appropriate symlink."""
-    if not is_recent(filepath):
-        return  # Skip old files
-
     cleaned_name = clean_filename(filepath.name)
     info = guessit(cleaned_name)
 
@@ -92,7 +83,7 @@ def cleanup_broken_symlinks(path: Path):
 # === Main ===
 
 def main():
-    print(f"[INFO] Scanning for recent files in: {SOURCE}")
+    print(f"[INFO] Scanning for files in: {SOURCE}")
     cleanup_broken_symlinks(DEST_BASE)
 
     for root, _, files in os.walk(SOURCE):
