@@ -10,6 +10,10 @@ DEST_BASE = Path(os.getenv("DEST_BASE", "/srv/jellyfin"))
 
 # === Helper Functions ===
 
+# === Allowed media types ===
+MEDIA_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.mov', '.flv', '.wmv', '.mp3', '.aac', '.flac', '.wav'}
+
+
 def clean_filename(filename: str) -> str:
     """
     Strip common release tags like 'www.1TamilMV.moi - ' from the beginning of filenames.
@@ -42,6 +46,9 @@ def make_symlink(source_file: Path, target_path: Path):
 
 def process_file(filepath: Path):
     """Parse filename and create appropriate symlink."""
+    if filepath.suffix.lower() not in MEDIA_EXTENSIONS:
+        print(f"[SKIP] Unsupported file type: {filepath}")
+        return
     cleaned_name = clean_filename(filepath.name)
     info = guessit(cleaned_name)
 
