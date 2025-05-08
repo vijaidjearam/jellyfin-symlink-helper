@@ -54,13 +54,21 @@ def process_file(filepath: Path):
         target_folder = DEST_BASE / "Movies" / f"{title} ({year})"
         target_name = f"{title} ({year}){filepath.suffix}"
 
-    elif info.get("type") == "episode":
-        title = info.get("title")
+    elif info.get("type") == "episode" or filepath.parent != SOURCE:
+        # If guessit says it's an episode, or it's inside a folder (not directly under SOURCE)
+        title = info.get("title") or filepath.parent.name
         season = info.get("season")
         episode = info.get("episode")
+        # Try to extract season/episode from filename if guessit missed it
+        if not (season and episode):
+            # Example fallback: try to parse S01E01 manually
+            match = re.search(r'[Ss](\d{1,2})[Ee](\d{1,2})', filepath.name)
+            if match:
+                season, episode = int(match.group(1)), int(match.group(2))
         if not (title and season and episode):
             print(f"[SKIP] Incomplete episode info: {filepath}")
             return
+
         target_folder = DEST_BASE / "TV Shows" / title / f"Season {season:02}"
         target_name = f"{title} - S{season:02}E{episode:02}{filepath.suffix}"
 
@@ -86,10 +94,11 @@ def main():
     print(f"[INFO] Scanning for files in: {SOURCE}")
     cleanup_broken_symlinks(DEST_BASE)
 
-    for root, _, files in os.walk(SOURCE):
-        for file in files:
-            full_path = Path(root) / file
-            process_file(full_path)
+    for dirpath, _, filenames in os.walk(SOURCE):
+        for filename in filenames:
+            full_path = Path(dirpath) / filename
+            if full_path.is_file():
+                process_file(full_path)
 
 if __name__ == "__main__":
     main()
