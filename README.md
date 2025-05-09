@@ -86,13 +86,13 @@ Ensure your Docker user has read access to **$SOURCE** and write access to **$DE
 
 # 🧩 Jellyfin Symlink Helper Docker container from DockerHub
 
-This project sets up a Docker container using the [`vijaidj/jellyfin-symlink-helper`](https://hub.docker.com/r/vijaidj/jellyfin-symlink-helper) image to process media files and create symbolic links, helping Jellyfin better index and organize your media library.
+This project deploys a Docker container using the [`vijaidj/jellyfin-symlink-helper`](https://hub.docker.com/r/vijaidj/jellyfin-symlink-helper) image. It scans a source directory for media files and creates symbolic links in a destination directory, enabling Jellyfin to correctly recognize and organize the content.
 
 ---
 
 ## 📦 Overview
 
-The container watches a specified **source** directory for media files and creates symbolic links in a structured format inside a **destination** directory. These symlinks are designed to be recognized and parsed correctly by [Jellyfin](https://jellyfin.org/).
+This helper tool is useful when downloaded or unmanaged media needs to be cleaned up, renamed, and symlinked into a structured format for Jellyfin to consume easily.
 
 ---
 
@@ -112,7 +112,7 @@ services:
       - DEST_BASE=${DEST_BASE}
     volumes:
       - ${SOURCE}:${SOURCE}:ro
-      - /srv/jellyfin:${DEST_BASE}
+      - ${DEST_BASE}:${DEST_BASE}
     restart: unless-stopped
 ```
 
@@ -125,59 +125,58 @@ Create a `.env` file in the same directory as your `docker-compose.yml` and defi
 | Variable    | Description                             | Example              |
 |-------------|-----------------------------------------|----------------------|
 | `SOURCE`    | Path to the source media directory      | `/srv/downloads`     |
-| `DEST_BASE` | Path to the base destination directory  | `/media`             |
+| `DEST_BASE` | Path to the destination directory       | `/srv/jellyfin`      |
 
 ### Example `.env` file
 
 ```env
 SOURCE=/srv/downloads
-DEST_BASE=/media
+DEST_BASE=/srv/jellyfin
 ```
 
-> 💡 **Note**: Ensure the Jellyfin container has access to the `DEST_BASE` path for proper indexing.
+> 🔒 **Note**: The container mounts both paths. Ensure appropriate permissions are set so the container can read from `SOURCE` and write to `DEST_BASE`.
 
 ---
 
 ## ▶️ Usage
 
-1. Clone or create this repository.
-2. Create a `.env` file as shown above.
-3. Start the container with:
+1. Create your `.env` file as described above.
+2. Deploy the container:
 
    ```bash
    docker-compose up -d
    ```
 
-4. The container will:
-   - Scan the `SOURCE` directory for media files.
-   - Generate symlinks inside `DEST_BASE`.
-   - Update automatically when restarted.
-
-5. Point your Jellyfin library to the `DEST_BASE` path.
+3. The symlink helper will:
+   - Scan media files in the source folder.
+   - Parse names and generate symlinks.
+   - Place symlinks in the destination folder for Jellyfin to detect.
 
 ---
 
 ## ♻️ Restart Policy
 
-The service uses the following restart policy:
+The container uses the following restart policy:
 
 ```yaml
 restart: unless-stopped
 ```
 
-This means the container will:
-
-- Restart automatically if it crashes or the system reboots.
-- Stay stopped if manually stopped with `docker stop`.
+This ensures the container restarts automatically on system reboot or crash, unless manually stopped.
 
 ---
 
 ## 🛠️ Troubleshooting
 
-- **No symlinks created?** Double-check your `.env` paths and make sure the source directory is not empty.
-- **Permissions issue?** Ensure Docker has read access to `SOURCE` and write access to `DEST_BASE`.
-- **Still stuck?** Review logs with:
+- **No symlinks created?**
+  - Ensure your source folder is not empty.
+  - Validate file naming for compatibility.
+- **Permission issues?**
+  - Check that Docker can read from `SOURCE` and write to `DEST_BASE`.
+- **Logs for diagnosis:**
 
   ```bash
   docker logs symlink-processor
   ```
+
+
