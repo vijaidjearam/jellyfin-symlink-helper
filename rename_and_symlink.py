@@ -88,13 +88,20 @@ def process_file(filepath: Path):
 
 def cleanup_broken_symlinks(path: Path):
     """Remove any broken symlinks in the target folder tree."""
+    print(f"[INFO] Cleaning broken symlinks in: {path}")
     for root, _, files in os.walk(path):
         for file in files:
             full_path = Path(root) / file
-            if full_path.is_symlink() and not full_path.exists():
-                print(f"[CLEAN] Removing broken symlink: {full_path}")
-                full_path.unlink()
-
+            try:
+                if full_path.is_symlink():
+                    target = full_path.resolve(strict=False)
+                    if not full_path.exists():
+                        print(f"[CLEAN] Removing broken symlink: {full_path} -> {target}")
+                        full_path.unlink()
+                    else:
+                        print(f"[OK] Symlink valid: {full_path} -> {target}")
+            except Exception as e:
+                print(f"[ERROR] Checking symlink {full_path}: {e}")
 # === Main ===
 
 def main():
