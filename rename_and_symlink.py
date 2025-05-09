@@ -58,7 +58,7 @@ def process_file(filepath: Path):
         if not title:
             print(f"[SKIP] No title found: {filepath}")
             return
-        target_folder = DEST_BASE / "Movies" / f"{title} ({year})"
+        target_folder = DEST_BASE / "movies" / f"{title} ({year})"
         target_name = f"{title} ({year}){filepath.suffix}"
 
     elif info.get("type") == "episode" or filepath.parent != SOURCE:
@@ -76,7 +76,7 @@ def process_file(filepath: Path):
             print(f"[SKIP] Incomplete episode info: {filepath}")
             return
 
-        target_folder = DEST_BASE / "TV Shows" / title / f"Season {season:02}"
+        target_folder = DEST_BASE / "tvshows" / title / f"Season {season:02}"
         target_name = f"{title} - S{season:02}E{episode:02}{filepath.suffix}"
 
     else:
