@@ -82,6 +82,8 @@ Add a line like:
 
 Ensure your Docker user has read access to **$SOURCE** and write access to **$DEST_BASE**.
 
+---
+
 # 🧩 Jellyfin Symlink Helper Docker container from DockerHub
 
 This project sets up a Docker container using the [`vijaidj/jellyfin-symlink-helper`](https://hub.docker.com/r/vijaidj/jellyfin-symlink-helper) image to process media files and create symbolic links, helping Jellyfin better index and organize your media library.
