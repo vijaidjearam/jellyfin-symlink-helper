@@ -28,13 +28,13 @@ jobs:
 
           # Increment patch version
           new_version=$(echo "$version_number" | awk -F. -v OFS=. '{$NF++; print}')
-          echo "version=v$new_version" >> $GITHUB_OUTPUT
+          echo "version=$new_version" >> $GITHUB_OUTPUT
 
   docker:
     runs-on: ubuntu-latest
     needs: version
     permissions:
-      contents: write   # Required to push tags
+      contents: write  # Required to push tags
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -61,7 +61,7 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/jellyfin-symlink-helper:latest
-            ${{ secrets.DOCKER_USERNAME }}/jellyfin-symlink-helper:${{ needs.version.outputs.version }}
+            ${{ secrets.DOCKER_USERNAME }}/jellyfin-symlink-helper:v${{ needs.version.outputs.version }}
 
       - name: Create Git tag
         run: |
