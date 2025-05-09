@@ -87,7 +87,7 @@ def process_file(filepath: Path):
     make_symlink(filepath, target_path)
 
 def cleanup_broken_symlinks(path: Path):
-    """Remove any broken symlinks in the target folder tree."""
+    """Remove broken symlinks and then clean up empty directories."""
     print(f"[INFO] Cleaning broken symlinks in: {path}")
     for root, _, files in os.walk(path):
         for file in files:
@@ -102,6 +102,16 @@ def cleanup_broken_symlinks(path: Path):
                         print(f"[OK] Symlink valid: {full_path} -> {target}")
             except Exception as e:
                 print(f"[ERROR] Checking symlink {full_path}: {e}")
+
+    # Walk bottom-up to remove empty folders
+    for root, dirs, files in os.walk(path, topdown=False):
+        dir_path = Path(root)
+        if not any(dir_path.iterdir()):
+            try:
+                dir_path.rmdir()
+                print(f"[CLEAN] Removed empty directory: {dir_path}")
+            except Exception as e:
+                print(f"[ERROR] Could not remove {dir_path}: {e}")
 # === Main ===
 
 def main():
