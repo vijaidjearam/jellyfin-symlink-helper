@@ -59,6 +59,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/jellyfin-symlink-helper:latest
             ${{ secrets.DOCKER_USERNAME }}/jellyfin-symlink-helper:v${{ needs.version.outputs.version }}
