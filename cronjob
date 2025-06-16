@@ -1,2 +1,0 @@
-0 * * * * root python3 /usr/local/bin/rename_and_symlink.py >> /var/log/cron.log 2>&1
-
