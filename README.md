@@ -178,5 +178,77 @@ This ensures the container restarts automatically on system reboot or crash, unl
   ```bash
   docker logs symlink-processor
   ```
+# Run rename_and_symlink.py Script with guessit via Cron on Ubuntu 24.04 directly on the host instead of containers
+
+## 🐍 Step 1: Set up a Virtual Environment
+
+```bash
+python3 -m venv /opt/venvs/guessit
+source /opt/venvs/guessit/bin/activate
+pip install guessit
+```
+
+This ensures you can import `guessit` in scripts without breaking your system Python.
+
+## 📝 Step 2: Create a Shell Wrapper Script
+
+Create a script to activate the environment and run your Python code.
+
+```bash
+sudo nano /scripts/run_process.sh
+```
+
+Paste this:
+
+```bash
+#!/bin/bash
+source /opt/venvs/guessit/bin/activate
+python /scripts/rename_and_symlink.py >> /scripts/process.log 2>&1
+```
+
+Make it executable:
+
+```bash
+chmod +x /scripts/run_process.sh
+```
+
+## 🕐 Step 3: Schedule with Cron
+
+Edit your crontab:
+
+```bash
+crontab -e
+```
+
+Add this line to run the script every hour:
+
+```cron
+0 * * * * /scripts/run_process.sh
+```
+
+## ✅ Step 4: Verify Execution
+
+Check if the cron job is installed:
+
+```bash
+crontab -l
+```
+
+Monitor the log file to confirm your script is running:
+
+```bash
+tail -f /scripts/process.log
+```
+
+## ⚠️ Additional Tips
+
+- **Always use absolute paths** in scripts called from cron.
+- **Cron has a minimal environment**, so set any required `PATH`, environment variables, or dependencies inside your wrapper script.
+- Don’t use `pipx` for libraries used in scripts — it's intended for CLI tools.
+
+---
+
+By using virtual environments and a shell wrapper, you ensure your scripts run reliably and safely with modern Python package management constraints on Ubuntu 24.04.
+
 
 
