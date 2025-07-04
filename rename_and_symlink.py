@@ -1,12 +1,14 @@
 import os
 import time
 import re
+import hashlib
 from pathlib import Path
 from guessit import guessit
 
 # === Config ===
 SOURCE = Path(os.getenv("SOURCE", "/mnt/debridlink"))
 DEST_BASE = Path(os.getenv("DEST_BASE", "/srv/jellyfin"))
+HASH_FILE = Path("/tmp/debridlink_dir.hash")
 
 # === Allowed media types ===
 MEDIA_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.mov', '.flv', '.wmv', '.mp3', '.aac', '.flac', '.wav'}
@@ -16,6 +18,23 @@ MEDIA_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.mov', '.flv', '.wmv', '.mp3', '.aa
 def log(message: str):
     """Print log messages with a timestamp."""
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+
+def hash_directory(path: Path) -> str:
+    """Compute SHA256 hash of all file contents in directory (recursively)."""
+    sha = hashlib.sha256()
+    for root, dirs, files in os.walk(path):
+        for filename in sorted(files):
+            filepath = Path(root) / filename
+            try:
+                with open(filepath, 'rb') as f:
+                    while True:
+                        buf = f.read(4096)
+                        if not buf:
+                            break
+                        sha.update(buf)
+            except Exception as e:
+                log(f"[WARN] Could not read file {filepath}: {e}")
+    return sha.hexdigest()
 
 def clean_filename(filename: str) -> str:
     """Strip common release tags like 'www.1TamilMV.moi - ' from the beginning of filenames."""
@@ -111,9 +130,22 @@ def cleanup_broken_symlinks(path: Path):
 # === Main ===
 
 def main():
+    # Check if directory contents have changed
+    current_hash = hash_directory(SOURCE)
+    last_hash = None
+    if HASH_FILE.exists():
+        last_hash = HASH_FILE.read_text()
+
+    if current_hash == last_hash:
+        log("[INFO] No changes detected in source directory. Exiting.")
+        return
+    else:
+        log("[INFO] Changes detected, processing files.")
+        HASH_FILE.write_text(current_hash)
+
     start_time = time.time()
     log(f"[INFO] Scanning for files in: {SOURCE}")
-    
+
     cleanup_broken_symlinks(DEST_BASE)
 
     for dirpath, _, filenames in os.walk(SOURCE):
