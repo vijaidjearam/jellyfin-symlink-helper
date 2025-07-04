@@ -11,4 +11,4 @@ COPY rename_and_symlink.py .
 #CMD ["python3", "rename_and_symlink.py"]
 
 # Default command to run bash shell and keep container running
-CMD ["bash"]
+CMD ["sh"]
