@@ -49,6 +49,7 @@ def process_file(filepath: Path):
     if filepath.suffix.lower() not in MEDIA_EXTENSIONS:
         log(f"[SKIP] Unsupported file type: {filepath}")
         return
+
     cleaned_name = clean_filename(filepath.name)
     info = guessit(cleaned_name)
 
@@ -65,16 +66,32 @@ def process_file(filepath: Path):
         title = info.get("title") or filepath.parent.name
         season = info.get("season")
         episode = info.get("episode")
-        if not (season and episode):
+
+        # Normalize season and episode if they are lists
+        if isinstance(season, list):
+            season = season[0]
+        if isinstance(episode, list):
+            episode_list = episode
+        elif isinstance(episode, int):
+            episode_list = [episode]
+        else:
+            episode_list = []
+
+        # Fallback to regex if episode info is missing
+        if not (season and episode_list):
             match = re.search(r'[Ss](\d{1,2})[Ee](\d{1,2})', filepath.name)
             if match:
-                season, episode = int(match.group(1)), int(match.group(2))
-        if not (title and season and episode):
+                season = int(match.group(1))
+                episode_list = [int(match.group(2))]
+
+        if not (title and season and episode_list):
             log(f"[SKIP] Incomplete episode info: {filepath}")
             return
 
+        # Format episode part: E01-E02-E03
+        episode_str = '-'.join(f"E{e:02}" for e in episode_list)
         target_folder = DEST_BASE / "tvshows" / title / f"Season {season:02}"
-        target_name = f"{title} - S{season:02}E{episode:02}{filepath.suffix}"
+        target_name = f"{title} - S{season:02}{episode_str}{filepath.suffix}"
 
     else:
         log(f"[SKIP] Unknown media type: {filepath}")
