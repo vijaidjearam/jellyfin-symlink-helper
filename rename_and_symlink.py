@@ -20,7 +20,12 @@ def log(message: str):
 
 def clean_filename(filename: str) -> str:
     """Strip common release tags like 'www.1TamilMV.moi - ' from the beginning of filenames."""
-    cleaned = re.sub(r'^(www\.[^\s]+)\s*-\s*', '', filename)
+        cleaned = re.sub(
+        r'^(?:\[\s*www\.[\w.-]+\s*\]|\(\s*www\.[\w.-]+\s*\)|www\.[\w.-]+)\s*-\s*',
+        '',
+        filename,
+        flags=re.IGNORECASE
+    )
     return cleaned.strip()
 
 def make_symlink(source_file: Path, target_path: Path):
@@ -147,3 +152,4 @@ if __name__ == "__main__":
         main()
         log(f"[INFO] Sleeping for {POLL_INTERVAL} seconds before next scan.")
         time.sleep(POLL_INTERVAL)
+
