@@ -11,6 +11,7 @@ POLL_INTERVAL = 3600  # seconds
 
 # === Allowed media types ===
 MEDIA_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.mov', '.flv', '.wmv', '.mp3', '.aac', '.flac', '.wav'}
+SUBTITLE_EXTENSIONS = {'.srt', '.sub', '.ass', '.ssa', '.vtt'}
 
 # === Helper Functions ===
 
@@ -44,6 +45,26 @@ def make_symlink(source_file: Path, target_path: Path):
     except Exception as e:
         log(f"[ERROR] Could not create symlink: {e}")
 
+def find_matching_subtitles(media_file: Path) -> list[Path]:
+    """Find subtitle files that match the media file."""
+    subtitles = []
+    media_stem = media_file.stem
+    parent_dir = media_file.parent
+    
+    # Look for subtitles with the same base name
+    for sub_ext in SUBTITLE_EXTENSIONS:
+        # Direct match: movie.srt
+        direct_match = parent_dir / f"{media_stem}{sub_ext}"
+        if direct_match.exists():
+            subtitles.append(direct_match)
+        
+        # Language-tagged subtitles: movie.en.srt, movie.eng.srt
+        for sub_file in parent_dir.glob(f"{media_stem}.*{sub_ext}"):
+            if sub_file not in subtitles:
+                subtitles.append(sub_file)
+    
+    return subtitles
+
 def process_file(filepath: Path):
     """Parse filename and create appropriate symlink."""
     if filepath.suffix.lower() not in MEDIA_EXTENSIONS:
@@ -61,6 +82,7 @@ def process_file(filepath: Path):
             return
         target_folder = DEST_BASE / "movies" / f"{title} ({year})"
         target_name = f"{title} ({year}){filepath.suffix}"
+        subtitle_base = f"{title} ({year})"
 
     elif info.get("type") == "episode" or filepath.parent != SOURCE:
         title = info.get("title") or filepath.parent.name
@@ -92,6 +114,7 @@ def process_file(filepath: Path):
         episode_str = '-'.join(f"E{e:02}" for e in episode_list)
         target_folder = DEST_BASE / "tvshows" / title / f"Season {season:02}"
         target_name = f"{title} - S{season:02}{episode_str}{filepath.suffix}"
+        subtitle_base = f"{title} - S{season:02}{episode_str}"
 
     else:
         log(f"[SKIP] Unknown media type: {filepath}")
@@ -99,6 +122,24 @@ def process_file(filepath: Path):
 
     target_path = target_folder / target_name
     make_symlink(filepath, target_path)
+    
+    # Process matching subtitle files
+    subtitles = find_matching_subtitles(filepath)
+    for sub_file in subtitles:
+        # Extract language code if present (e.g., .en.srt, .eng.srt)
+        sub_stem = sub_file.stem
+        media_stem = filepath.stem
+        
+        if sub_stem == media_stem:
+            # Direct match: keep same extension
+            sub_target_name = f"{subtitle_base}{sub_file.suffix}"
+        else:
+            # Language-tagged: extract the language part
+            lang_part = sub_stem.replace(media_stem, '').lstrip('.')
+            sub_target_name = f"{subtitle_base}.{lang_part}{sub_file.suffix}"
+        
+        sub_target_path = target_folder / sub_target_name
+        make_symlink(sub_file, sub_target_path)
 
 def cleanup_broken_symlinks(path: Path):
     """Remove broken symlinks and then clean up empty directories."""
@@ -147,5 +188,3 @@ if __name__ == "__main__":
         main()
         log(f"[INFO] Sleeping for {POLL_INTERVAL} seconds before next scan.")
         time.sleep(POLL_INTERVAL)
-
-
