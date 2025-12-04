@@ -94,19 +94,14 @@ def create_nfo_file(target_folder: Path, title: str, year: int = None, season: i
             log(f"[ERROR] Could not create NFO file: {e}")
 
 def extract_release_date(info: dict, filepath: Path) -> str:
-    """Try to extract release date from guessit info or file modification time."""
+    """Try to extract release date from guessit info or use current date."""
     # Check if guessit found a date
     date_val = info.get('date')
     if date_val:
         return str(date_val)
     
-    # Fallback to file modification time
-    try:
-        mtime = filepath.stat().st_mtime
-        date_obj = datetime.fromtimestamp(mtime)
-        return date_obj.strftime('%Y-%m-%d')
-    except:
-        return None
+    # Fallback to current date
+    return datetime.now().strftime('%Y-%m-%d')
 
 def find_matching_subtitles(media_file: Path) -> list[Path]:
     """Find subtitle files that match the media file."""
