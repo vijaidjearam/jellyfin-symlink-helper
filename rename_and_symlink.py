@@ -3,6 +3,7 @@ import time
 import re
 from pathlib import Path
 from guessit import guessit
+from datetime import datetime
 
 # === Config ===
 SOURCE = Path(os.getenv("SOURCE", "/mnt/debridlink"))
@@ -45,6 +46,68 @@ def make_symlink(source_file: Path, target_path: Path):
     except Exception as e:
         log(f"[ERROR] Could not create symlink: {e}")
 
+def create_nfo_file(target_folder: Path, title: str, year: int = None, season: int = None, episode_list: list = None, release_date: str = None):
+    """Create an NFO file with metadata for Jellyfin."""
+    
+    if season is not None and episode_list is not None:
+        # TV Show Episode NFO
+        for episode in episode_list:
+            episode_str = f"E{episode:02}"
+            nfo_path = target_folder / f"{title} - S{season:02}{episode_str}.nfo"
+            
+            nfo_content = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+            nfo_content += '<episodedetails>\n'
+            nfo_content += f'  <title>{title}</title>\n'
+            nfo_content += f'  <season>{season}</season>\n'
+            nfo_content += f'  <episode>{episode}</episode>\n'
+            if release_date or year:
+                date_to_use = release_date if release_date else f"{year}-01-01"
+                nfo_content += f'  <aired>{date_to_use}</aired>\n'
+            nfo_content += '</episodedetails>\n'
+            
+            try:
+                with open(nfo_path, 'w', encoding='utf-8') as f:
+                    f.write(nfo_content)
+                log(f"[NFO] Created episode NFO: {nfo_path}")
+            except Exception as e:
+                log(f"[ERROR] Could not create NFO file: {e}")
+    else:
+        # Movie NFO
+        nfo_path = target_folder / f"{title} ({year}).nfo"
+        
+        nfo_content = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        nfo_content += '<movie>\n'
+        nfo_content += f'  <title>{title}</title>\n'
+        if year:
+            nfo_content += f'  <year>{year}</year>\n'
+        if release_date or year:
+            date_to_use = release_date if release_date else f"{year}-01-01"
+            nfo_content += f'  <premiered>{date_to_use}</premiered>\n'
+            nfo_content += f'  <releasedate>{date_to_use}</releasedate>\n'
+        nfo_content += '</movie>\n'
+        
+        try:
+            with open(nfo_path, 'w', encoding='utf-8') as f:
+                f.write(nfo_content)
+            log(f"[NFO] Created movie NFO: {nfo_path}")
+        except Exception as e:
+            log(f"[ERROR] Could not create NFO file: {e}")
+
+def extract_release_date(info: dict, filepath: Path) -> str:
+    """Try to extract release date from guessit info or file modification time."""
+    # Check if guessit found a date
+    date_val = info.get('date')
+    if date_val:
+        return str(date_val)
+    
+    # Fallback to file modification time
+    try:
+        mtime = filepath.stat().st_mtime
+        date_obj = datetime.fromtimestamp(mtime)
+        return date_obj.strftime('%Y-%m-%d')
+    except:
+        return None
+
 def find_matching_subtitles(media_file: Path) -> list[Path]:
     """Find subtitle files that match the media file."""
     subtitles = []
@@ -73,6 +136,9 @@ def process_file(filepath: Path):
 
     cleaned_name = clean_filename(filepath.name)
     info = guessit(cleaned_name)
+    
+    # Extract release date
+    release_date = extract_release_date(info, filepath)
 
     if info.get("type") == "movie":
         title = info.get("title")
@@ -83,6 +149,9 @@ def process_file(filepath: Path):
         target_folder = DEST_BASE / "movies" / f"{title} ({year})"
         target_name = f"{title} ({year}){filepath.suffix}"
         subtitle_base = f"{title} ({year})"
+        
+        # Create NFO file for movie
+        create_nfo_file(target_folder, title, year=year, release_date=release_date)
 
     elif info.get("type") == "episode" or filepath.parent != SOURCE:
         title = info.get("title") or filepath.parent.name
@@ -115,6 +184,10 @@ def process_file(filepath: Path):
         target_folder = DEST_BASE / "tvshows" / title / f"Season {season:02}"
         target_name = f"{title} - S{season:02}{episode_str}{filepath.suffix}"
         subtitle_base = f"{title} - S{season:02}{episode_str}"
+        
+        # Create NFO file for episode
+        year = info.get("year")
+        create_nfo_file(target_folder, title, year=year, season=season, episode_list=episode_list, release_date=release_date)
 
     else:
         log(f"[SKIP] Unknown media type: {filepath}")
