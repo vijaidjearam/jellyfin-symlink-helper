@@ -157,7 +157,7 @@ def process_file(filepath: Path):
         # Clean the folder name from release tags too
         title = clean_filename(title)
         # Remove common patterns like "S01 - EP(01-09)" from folder names
-        title = re.sub(r'\s*S\d{2}\s*-\s*EP\([^)]+\).*
+        title = re.sub(r'\s*S\d{2}\s*-\s*EP\([^)]+\).*$', '', title, flags=re.IGNORECASE)
 
         # Normalize season and episode if they are lists
         if isinstance(season, list):
@@ -475,3 +475,4 @@ if __name__ == "__main__":
         main()
         log(f"[INFO] Sleeping for {POLL_INTERVAL} seconds before next scan.")
         time.sleep(POLL_INTERVAL)
+
