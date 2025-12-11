@@ -49,6 +49,9 @@ def make_symlink(source_file: Path, target_path: Path):
 def create_nfo_file(target_folder: Path, title: str, year: int = None, season: int = None, episode_list: list = None, release_date: str = None):
     """Create an NFO file with metadata for Jellyfin."""
     
+    # Ensure target folder exists before creating NFO
+    os.makedirs(target_folder, exist_ok=True)
+    
     if season is not None and episode_list is not None:
         # TV Show Episode NFO
         for episode in episode_list:
@@ -149,7 +152,223 @@ def process_file(filepath: Path):
         create_nfo_file(target_folder, title, year=year, release_date=release_date)
 
     elif info.get("type") == "episode" or filepath.parent != SOURCE:
-        title = info.get("title") or filepath.parent.name
+        # Use parent folder name as the show title, not the episode title
+        title = filepath.parent.name
+        # Clean the folder name from release tags too
+        title = clean_filename(title)
+        # Remove common patterns like "S01 - EP(01-09)" from folder names
+        title = re.sub(r'\s*S\d{2}\s*-\s*EP\([^)]+\).*
+
+        # Normalize season and episode if they are lists
+        if isinstance(season, list):
+            season = season[0]
+        if isinstance(episode, list):
+            episode_list = episode
+        elif isinstance(episode, int):
+            episode_list = [episode]
+        else:
+            episode_list = []
+
+        # Fallback to regex if episode info is missing
+        if not (season and episode_list):
+            match = re.search(r'[Ss](\d{1,2})[Ee](\d{1,2})', filepath.name)
+            if match:
+                season = int(match.group(1))
+                episode_list = [int(match.group(2))]
+
+        if not (title and season and episode_list):
+            log(f"[SKIP] Incomplete episode info: {filepath}")
+            return
+
+        # Format episode part: E01-E02-E03
+        episode_str = '-'.join(f"E{e:02}" for e in episode_list)
+        target_folder = DEST_BASE / "tvshows" / title / f"Season {season:02}"
+        target_name = f"{title} - S{season:02}{episode_str}{filepath.suffix}"
+        subtitle_base = f"{title} - S{season:02}{episode_str}"
+        
+        # Create NFO file for episode
+        year = info.get("year")
+        create_nfo_file(target_folder, title, year=year, season=season, episode_list=episode_list, release_date=release_date)
+
+    else:
+        log(f"[SKIP] Unknown media type: {filepath}")
+        return
+
+    target_path = target_folder / target_name
+    make_symlink(filepath, target_path)
+    
+    # Process matching subtitle files
+    subtitles = find_matching_subtitles(filepath)
+    for sub_file in subtitles:
+        # Extract language code if present (e.g., .en.srt, .eng.srt)
+        sub_stem = sub_file.stem
+        media_stem = filepath.stem
+        
+        if sub_stem == media_stem:
+            # Direct match: keep same extension
+            sub_target_name = f"{subtitle_base}{sub_file.suffix}"
+        else:
+            # Language-tagged: extract the language part
+            lang_part = sub_stem.replace(media_stem, '').lstrip('.')
+            sub_target_name = f"{subtitle_base}.{lang_part}{sub_file.suffix}"
+        
+        sub_target_path = target_folder / sub_target_name
+        make_symlink(sub_file, sub_target_path)
+
+def cleanup_broken_symlinks(path: Path):
+    """Remove broken symlinks and then clean up empty directories."""
+    log(f"[INFO] Cleaning broken symlinks in: {path}")
+    for root, _, files in os.walk(path):
+        for file in files:
+            full_path = Path(root) / file
+            try:
+                if full_path.is_symlink():
+                    target = full_path.resolve(strict=False)
+                    if not full_path.exists():
+                        log(f"[CLEAN] Removing broken symlink: {full_path} -> {target}")
+                        full_path.unlink()
+                    else:
+                        log(f"[OK] Symlink valid: {full_path} -> {target}")
+            except Exception as e:
+                log(f"[ERROR] Checking symlink {full_path}: {e}")
+
+    for root, dirs, files in os.walk(path, topdown=False):
+        dir_path = Path(root)
+        if not any(dir_path.iterdir()):
+            try:
+                dir_path.rmdir()
+                log(f"[CLEAN] Removed empty directory: {dir_path}")
+            except Exception as e:
+                log(f"[ERROR] Could not remove {dir_path}: {e}")
+
+def main():
+    start_time = time.time()
+    log(f"[INFO] Scanning for files in: {SOURCE}")
+    
+    cleanup_broken_symlinks(DEST_BASE)
+
+    for dirpath, _, filenames in os.walk(SOURCE):
+        for filename in filenames:
+            full_path = Path(dirpath) / filename
+            if full_path.is_file():
+                process_file(full_path)
+
+    end_time = time.time()
+    duration = end_time - start_time
+    log(f"[DONE] Script completed in {duration:.2f} seconds.")
+
+if __name__ == "__main__":
+    while True:
+        main()
+        log(f"[INFO] Sleeping for {POLL_INTERVAL} seconds before next scan.")
+        time.sleep(POLL_INTERVAL), '', title, flags=re.IGNORECASE)
+        title = re.sub(r'\s*\(\d{4}\).*
+
+        # Normalize season and episode if they are lists
+        if isinstance(season, list):
+            season = season[0]
+        if isinstance(episode, list):
+            episode_list = episode
+        elif isinstance(episode, int):
+            episode_list = [episode]
+        else:
+            episode_list = []
+
+        # Fallback to regex if episode info is missing
+        if not (season and episode_list):
+            match = re.search(r'[Ss](\d{1,2})[Ee](\d{1,2})', filepath.name)
+            if match:
+                season = int(match.group(1))
+                episode_list = [int(match.group(2))]
+
+        if not (title and season and episode_list):
+            log(f"[SKIP] Incomplete episode info: {filepath}")
+            return
+
+        # Format episode part: E01-E02-E03
+        episode_str = '-'.join(f"E{e:02}" for e in episode_list)
+        target_folder = DEST_BASE / "tvshows" / title / f"Season {season:02}"
+        target_name = f"{title} - S{season:02}{episode_str}{filepath.suffix}"
+        subtitle_base = f"{title} - S{season:02}{episode_str}"
+        
+        # Create NFO file for episode
+        year = info.get("year")
+        create_nfo_file(target_folder, title, year=year, season=season, episode_list=episode_list, release_date=release_date)
+
+    else:
+        log(f"[SKIP] Unknown media type: {filepath}")
+        return
+
+    target_path = target_folder / target_name
+    make_symlink(filepath, target_path)
+    
+    # Process matching subtitle files
+    subtitles = find_matching_subtitles(filepath)
+    for sub_file in subtitles:
+        # Extract language code if present (e.g., .en.srt, .eng.srt)
+        sub_stem = sub_file.stem
+        media_stem = filepath.stem
+        
+        if sub_stem == media_stem:
+            # Direct match: keep same extension
+            sub_target_name = f"{subtitle_base}{sub_file.suffix}"
+        else:
+            # Language-tagged: extract the language part
+            lang_part = sub_stem.replace(media_stem, '').lstrip('.')
+            sub_target_name = f"{subtitle_base}.{lang_part}{sub_file.suffix}"
+        
+        sub_target_path = target_folder / sub_target_name
+        make_symlink(sub_file, sub_target_path)
+
+def cleanup_broken_symlinks(path: Path):
+    """Remove broken symlinks and then clean up empty directories."""
+    log(f"[INFO] Cleaning broken symlinks in: {path}")
+    for root, _, files in os.walk(path):
+        for file in files:
+            full_path = Path(root) / file
+            try:
+                if full_path.is_symlink():
+                    target = full_path.resolve(strict=False)
+                    if not full_path.exists():
+                        log(f"[CLEAN] Removing broken symlink: {full_path} -> {target}")
+                        full_path.unlink()
+                    else:
+                        log(f"[OK] Symlink valid: {full_path} -> {target}")
+            except Exception as e:
+                log(f"[ERROR] Checking symlink {full_path}: {e}")
+
+    for root, dirs, files in os.walk(path, topdown=False):
+        dir_path = Path(root)
+        if not any(dir_path.iterdir()):
+            try:
+                dir_path.rmdir()
+                log(f"[CLEAN] Removed empty directory: {dir_path}")
+            except Exception as e:
+                log(f"[ERROR] Could not remove {dir_path}: {e}")
+
+def main():
+    start_time = time.time()
+    log(f"[INFO] Scanning for files in: {SOURCE}")
+    
+    cleanup_broken_symlinks(DEST_BASE)
+
+    for dirpath, _, filenames in os.walk(SOURCE):
+        for filename in filenames:
+            full_path = Path(dirpath) / filename
+            if full_path.is_file():
+                process_file(full_path)
+
+    end_time = time.time()
+    duration = end_time - start_time
+    log(f"[DONE] Script completed in {duration:.2f} seconds.")
+
+if __name__ == "__main__":
+    while True:
+        main()
+        log(f"[INFO] Sleeping for {POLL_INTERVAL} seconds before next scan.")
+        time.sleep(POLL_INTERVAL), '', title)  # Remove year and everything after
+        title = title.strip()
+        
         season = info.get("season")
         episode = info.get("episode")
 
