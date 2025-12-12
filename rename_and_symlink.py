@@ -151,7 +151,7 @@ def process_file(filepath: Path):
         # Create NFO file for movie
         create_nfo_file(target_folder, title, year=year, release_date=release_date)
 
-    elif info.get("type") == "episode" or filepath.parent != SOURCE:
+    elif info.get("type") == "episode":
         # Use parent folder name as the show title, not the episode title
         title = filepath.parent.name
         # Clean the folder name from release tags too
