@@ -13,6 +13,7 @@ POLL_INTERVAL = 3600  # seconds
 # === Allowed media types ===
 MEDIA_EXTENSIONS = {'.mkv', '.mp4', '.avi', '.mov', '.flv', '.wmv', '.mp3', '.aac', '.flac', '.wav'}
 SUBTITLE_EXTENSIONS = {'.srt', '.sub', '.ass', '.ssa', '.vtt'}
+METADATA_EXTENSIONS = {'.nfo', '.jpg', '.jpeg', '.png', '.xml', '.txt'}
 
 # === Helper Functions ===
 
@@ -233,47 +234,138 @@ def process_file(filepath: Path):
         sub_target_path = target_folder / sub_target_name
         make_symlink(sub_file, sub_target_path)
 
-def cleanup_broken_symlinks(path: Path):
-    """Remove broken symlinks and then clean up empty directories."""
-    log(f"[INFO] Cleaning broken symlinks in: {path}")
-    for root, _, files in os.walk(path):
-        for file in files:
-            full_path = Path(root) / file
+
+def cleanup_orphaned_content(dest_path: Path):
+    """
+    Complete cleanup function that:
+    1. Removes broken symlinks (pointing to non-existent source files)
+    2. Removes orphaned metadata files (NFO, images) when no valid media exists
+    3. Removes empty directories from bottom-up
+    """
+    log(f"[INFO] Starting cleanup scan in: {dest_path}")
+    
+    broken_symlinks_removed = 0
+    orphaned_files_removed = 0
+    empty_dirs_removed = 0
+    
+    # === PASS 1: Remove all broken symlinks ===
+    log(f"[INFO] Pass 1: Checking for broken symlinks...")
+    for root, _, files in os.walk(dest_path):
+        for filename in files:
+            full_path = Path(root) / filename
             try:
+                # Check if it's a symlink and if the target exists
                 if full_path.is_symlink():
-                    target = full_path.resolve(strict=False)
+                    # Use exists() which returns False for broken symlinks
                     if not full_path.exists():
+                        target = os.readlink(full_path)
                         log(f"[CLEAN] Removing broken symlink: {full_path} -> {target}")
                         full_path.unlink()
-                    else:
-                        log(f"[OK] Symlink valid: {full_path} -> {target}")
+                        broken_symlinks_removed += 1
             except Exception as e:
-                log(f"[ERROR] Checking symlink {full_path}: {e}")
-
-    for root, dirs, files in os.walk(path, topdown=False):
+                log(f"[ERROR] Error checking {full_path}: {e}")
+    
+    log(f"[INFO] Pass 1 complete: Removed {broken_symlinks_removed} broken symlinks")
+    
+    # === PASS 2: Remove orphaned metadata files ===
+    # NFO files and other metadata should be removed if there's no valid media in the same directory
+    log(f"[INFO] Pass 2: Checking for orphaned metadata files...")
+    
+    for root, _, _ in os.walk(dest_path):
         dir_path = Path(root)
-        if not any(dir_path.iterdir()):
+        
+        try:
+            # Get fresh list of items in directory
+            current_items = list(dir_path.iterdir())
+        except Exception as e:
+            log(f"[ERROR] Cannot read directory {dir_path}: {e}")
+            continue
+        
+        # Check if any valid media symlinks exist in this directory
+        has_valid_media = False
+        for item in current_items:
+            if item.is_symlink() and item.exists():
+                # Check if it's a media or subtitle file
+                if item.suffix.lower() in MEDIA_EXTENSIONS or item.suffix.lower() in SUBTITLE_EXTENSIONS:
+                    has_valid_media = True
+                    break
+        
+        # If no valid media exists, remove all metadata files (not symlinks)
+        if not has_valid_media:
+            for item in current_items:
+                # Only remove regular files (not symlinks, not directories)
+                if item.is_file() and not item.is_symlink():
+                    if item.suffix.lower() in METADATA_EXTENSIONS:
+                        try:
+                            log(f"[CLEAN] Removing orphaned metadata: {item}")
+                            item.unlink()
+                            orphaned_files_removed += 1
+                        except Exception as e:
+                            log(f"[ERROR] Could not remove {item}: {e}")
+    
+    log(f"[INFO] Pass 2 complete: Removed {orphaned_files_removed} orphaned metadata files")
+    
+    # === PASS 3: Remove empty directories (bottom-up) ===
+    log(f"[INFO] Pass 3: Removing empty directories...")
+    
+    # We need multiple passes because removing a directory may make its parent empty
+    max_passes = 10  # Prevent infinite loops
+    for pass_num in range(max_passes):
+        dirs_removed_this_pass = 0
+        
+        # Walk bottom-up to handle nested empty directories
+        for root, dirs, files in os.walk(dest_path, topdown=False):
+            dir_path = Path(root)
+            
+            # Don't delete the base destination directories
+            if dir_path == dest_path:
+                continue
+            if dir_path == dest_path / "movies":
+                continue
+            if dir_path == dest_path / "tvshows":
+                continue
+            
             try:
-                dir_path.rmdir()
-                log(f"[CLEAN] Removed empty directory: {dir_path}")
+                # Check if directory is empty
+                if not any(dir_path.iterdir()):
+                    log(f"[CLEAN] Removing empty directory: {dir_path}")
+                    dir_path.rmdir()
+                    empty_dirs_removed += 1
+                    dirs_removed_this_pass += 1
             except Exception as e:
-                log(f"[ERROR] Could not remove {dir_path}: {e}")
+                log(f"[ERROR] Could not remove directory {dir_path}: {e}")
+        
+        # If no directories were removed this pass, we're done
+        if dirs_removed_this_pass == 0:
+            break
+    
+    log(f"[INFO] Pass 3 complete: Removed {empty_dirs_removed} empty directories")
+    log(f"[INFO] Cleanup finished: {broken_symlinks_removed} symlinks, {orphaned_files_removed} metadata files, {empty_dirs_removed} directories removed")
+
 
 def main():
     start_time = time.time()
-    log(f"[INFO] Scanning for files in: {SOURCE}")
+    log(f"[INFO] Starting scan cycle")
+    log(f"[INFO] Source: {SOURCE}")
+    log(f"[INFO] Destination: {DEST_BASE}")
     
-    cleanup_broken_symlinks(DEST_BASE)
-
+    # Run cleanup first
+    cleanup_orphaned_content(DEST_BASE)
+    
+    # Process all files from source
+    log(f"[INFO] Processing files from source...")
+    files_processed = 0
     for dirpath, _, filenames in os.walk(SOURCE):
         for filename in filenames:
             full_path = Path(dirpath) / filename
             if full_path.is_file():
                 process_file(full_path)
+                files_processed += 1
 
     end_time = time.time()
     duration = end_time - start_time
-    log(f"[DONE] Script completed in {duration:.2f} seconds.")
+    log(f"[DONE] Scan completed in {duration:.2f} seconds. Processed {files_processed} files.")
+
 
 if __name__ == "__main__":
     while True:
